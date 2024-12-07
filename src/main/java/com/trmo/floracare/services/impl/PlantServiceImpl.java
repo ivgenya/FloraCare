@@ -38,6 +38,17 @@ public class PlantServiceImpl implements PlantService {
     }
 
     @Override
+    public Plant update(Plant plant) {
+        return repository.save(plant);
+    }
+
+
+    @Override
+    public Optional<Plant> findById(UUID id) {
+        return repository.findById(id);
+    }
+
+    @Override
     public Map<LocalDate, List<String>> getWateringScheduleForUser(String userId) {
         Optional<User> optionalUser = userService.findById(UUID.fromString(userId));
         if (optionalUser.isEmpty()) {
@@ -66,20 +77,21 @@ public class PlantServiceImpl implements PlantService {
         return wateringScheduleMap;
     }
 
-
     private void createWateringSchedule(Plant plant) {
         if (plant.getWateringFrequency() == null || plant.getWateringFrequency() <= 0) {
             return;
         }
-        LocalDate today = LocalDate.now();
+        LocalDate wateringDay = LocalDate.now();
+        long SCHEDULE_PERIOD = 6;
+        LocalDate lastWatering = wateringDay.plusMonths(SCHEDULE_PERIOD);
         List<Schedule> schedules = new ArrayList<>();
-        for (int i = 0; i < 6; i++) {
-            LocalDate wateringDate = today.plusDays((long) i * plant.getWateringFrequency());
+        while (wateringDay.isBefore(lastWatering)) {
             Schedule schedule = new Schedule();
             schedule.setPlant(plant);
-            schedule.setWateringDate(wateringDate);
+            schedule.setWateringDate(wateringDay);
             schedule.setIsWatered(false);
             schedules.add(schedule);
+            wateringDay = wateringDay.plusDays(plant.getWateringFrequency());
         }
         scheduleRepository.saveAll(schedules);
     }
@@ -105,5 +117,11 @@ public class PlantServiceImpl implements PlantService {
                 scheduleRepository.saveAll(schedules);
             }
         }
+    }
+
+    @Override
+    public void delete(UUID plantId) {
+        Optional<Plant> plant = repository.findById(plantId);
+        plant.ifPresent(value -> repository.delete(value));
     }
 }

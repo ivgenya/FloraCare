@@ -15,6 +15,7 @@ public class PlantPhoto {
     @UuidGenerator
     private UUID id;
     private String image;
+    private boolean isMain;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plant_id", nullable = false)
     @JsonIgnore

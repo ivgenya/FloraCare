@@ -3,6 +3,7 @@ package com.trmo.floracare.controllers;
 import com.trmo.floracare.dto.PlantDTO;
 import com.trmo.floracare.dto.PlantPhotoDTO;
 import com.trmo.floracare.entities.Plant;
+import com.trmo.floracare.entities.PlantPhoto;
 import com.trmo.floracare.mapper.PlantMapper;
 import com.trmo.floracare.services.PlantService;
 import com.trmo.floracare.services.impl.JwtService;
@@ -10,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -17,10 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/plant")
@@ -36,14 +36,7 @@ public class PlantController {
     private String plantUploadDir;
 
     @PostMapping("/add")
-    public ResponseEntity<?> addPlant(@RequestHeader("Authorization") String authorizationHeader, @RequestBody PlantDTO plant) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authorization token missing or invalid");
-        }
-
-        String token = authorizationHeader.substring(7);
-
-        String userId = jwtService.getUserIdFromToken(token);
+    public ResponseEntity<?> addPlant(@RequestBody PlantDTO plant) {
         try {
             if (plant.getPhotos() != null && !plant.getPhotos().isEmpty()) {
                 for (PlantPhotoDTO photoDTO : plant.getPhotos()) {
@@ -52,6 +45,7 @@ public class PlantController {
                             byte[] imageBytes = Base64.getDecoder().decode(photoDTO.getImage());
                             String imageUrl = saveImage(imageBytes);
                             photoDTO.setImage(imageUrl);
+                            photoDTO.setMain(true);
                         } catch (IOException e) {
                             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                     .body("Error saving image: " + e.getMessage());
@@ -66,41 +60,55 @@ public class PlantController {
         }
     }
 
-    private String saveImage(byte[] imageBytes) throws IOException {
-        String imageName = UUID.randomUUID() + ".jpg";
-        Path imagePath = Paths.get(plantUploadDir, imageName);
-        Files.createDirectories(imagePath.getParent());
-        Files.write(imagePath, imageBytes);
-        return "/plant-uploads/" + imageName;
+    @PostMapping("/add-photo")
+    public ResponseEntity<?> addPlantPhoto(@RequestBody PlantPhotoDTO dto) {
+        Optional<Plant> plantOpt = plantService.findById(dto.getPlantId());
+        if (plantOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Plant not found");
+        }
+        Plant plant = plantOpt.get();
+        try {
+            byte[] imageBytes = Base64.getDecoder().decode(dto.getImage());
+            String imageUrl = saveImage(imageBytes);
+
+            PlantPhoto photo = new PlantPhoto();
+            photo.setImage(imageUrl);
+            photo.setPlant(plant);
+            plant.getPhotos().add(photo);
+            plantService.update(plant);
+
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error saving image: " + e.getMessage());
+        }
+        PlantDTO plantDTO = mapper.mapToDTO(plant);
+        return ResponseEntity.ok(plantDTO);
+    }
+
+
+    @GetMapping("/{plantId}")
+    public ResponseEntity<?> getPlantDetails(@PathVariable UUID plantId) {
+        Optional<Plant> plantOpt = plantService.findById(plantId);
+        if (plantOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found");
+        }
+        Plant plant = plantOpt.get();
+        PlantDTO plantDTO = mapper.mapToDTO(plant);
+        return ResponseEntity.ok(plantDTO);
     }
 
     @GetMapping("/watering-schedule")
-    public ResponseEntity<Map<LocalDate, List<String>>> getWateringSchedule(@RequestHeader("Authorization") String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
-        }
-        String token = authorizationHeader.substring(7);
-        String userId = jwtService.getUserIdFromToken(token);
-
-        if (userId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
-        }
+    public ResponseEntity<Map<LocalDate, List<String>>> getWateringSchedule() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String userId = (String) authentication.getPrincipal();
         Map<LocalDate, List<String>> schedule = plantService.getWateringScheduleForUser(userId);
         return ResponseEntity.ok(schedule);
     }
 
     @PostMapping("/mark-watering")
-    public ResponseEntity<?> markWatering(@RequestHeader("Authorization") String authorizationHeader, @RequestBody Map<String, String> request) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authorization token missing or invalid");
-        }
-
-        String token = authorizationHeader.substring(7);
-        String userId = jwtService.getUserIdFromToken(token);
-
-        if (userId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid user.");
-        }
+    public ResponseEntity<?> markWatering(@RequestBody Map<String, String> request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String userId = (String) authentication.getPrincipal();
 
         String dateStr = request.get("date");
         if (dateStr == null) {
@@ -120,5 +128,23 @@ public class PlantController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error marking watering: " + e.getMessage());
         }
+    }
+
+    @DeleteMapping("/{plantId}")
+    public ResponseEntity<?> deletePlant(@PathVariable UUID plantId) {
+        try {
+            plantService.delete(plantId);
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Room deleted successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the room");
+        }
+    }
+
+    private String saveImage(byte[] imageBytes) throws IOException {
+        String imageName = UUID.randomUUID() + ".jpg";
+        Path imagePath = Paths.get(plantUploadDir, imageName);
+        Files.createDirectories(imagePath.getParent());
+        Files.write(imagePath, imageBytes);
+        return "/plant-uploads/" + imageName;
     }
 }

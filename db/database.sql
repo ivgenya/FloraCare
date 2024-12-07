@@ -38,6 +38,7 @@ CREATE TABLE plant_photo (
     id BINARY(16) NOT NULL PRIMARY KEY,
     plant_id BINARY(16),
     image VARCHAR(255),
+    is_main BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (plant_id) REFERENCES plant(id) ON DELETE CASCADE
 );
 
@@ -45,7 +46,7 @@ CREATE TABLE device (
     id BINARY(16) NOT NULL PRIMARY KEY,
     room_id BINARY(16) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    mac_address VARCHAR(255) UNIQUE,
+    mac_address VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
 );
