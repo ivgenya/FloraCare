@@ -5,6 +5,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,11 +17,12 @@ import java.util.Optional;
 @Slf4j
 public class GoogleTokenVerifierService {
 
-    private final GoogleIdTokenVerifier verifier;
-    @Value("${google.client-id}")
+    @Value("${google.client.id}")
     private String CLIENT_ID;
+    private GoogleIdTokenVerifier verifier;
 
-    public GoogleTokenVerifierService() throws Exception {
+    @PostConstruct
+    public void init() throws Exception {
         JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
         verifier = new GoogleIdTokenVerifier.Builder(GoogleNetHttpTransport.newTrustedTransport(), jsonFactory)
                 .setAudience(Collections.singletonList(CLIENT_ID))
@@ -37,7 +39,6 @@ public class GoogleTokenVerifierService {
                 return Optional.of(payload);
             }
         } catch (Exception e) {
-            log.error(String.valueOf(e));
             e.printStackTrace();
         }
         return Optional.empty();

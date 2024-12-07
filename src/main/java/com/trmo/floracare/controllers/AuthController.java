@@ -11,15 +11,16 @@ import com.trmo.floracare.services.impl.JwtService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @RestController
 @Slf4j
@@ -92,50 +93,14 @@ public class AuthController {
                     newUser.setAvatarUrl(avatarUrl);
                     return userService.save(newUser);
                 });
-
                 String jwt = jwtService.createToken(user.getId().toString());
-
                 return ResponseEntity.ok(Collections.singletonMap("authToken", jwt));
             }
-            log.info(googleToken);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google Token");
 
         } catch (Exception e) {
             log.error(String.valueOf(e));
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Authentication failed");
-        }
-    }
-
-    @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authorizationHeader) {
-        try {
-            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authorization token missing or invalid");
-            }
-
-            String token = authorizationHeader.substring(7);
-
-            String userId = jwtService.getUserIdFromToken(token);
-
-            if (userId == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid token");
-            }
-
-            Optional<User> userOptional = userService.findById(UUID.fromString(userId));
-
-            if (userOptional.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
-            }
-
-            User user = userOptional.get();
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(mapper.mapToDTO(user));
-
-        } catch (Exception e) {
-            log.error("Error getting user from token", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while retrieving user");
         }
     }
 }
