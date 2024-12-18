@@ -66,8 +66,7 @@ public class RoomController {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error saving image: " + e.getMessage());
             }
         }
-        service.save(room);
-        return ResponseEntity.status(HttpStatus.CREATED).body("Room created successfully");
+        return new ResponseEntity<>(service.save(room), HttpStatus.CREATED);
     }
 
     @PutMapping("/{roomId}/update-name")
@@ -185,15 +184,5 @@ public class RoomController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the device from the room");
         }
-    }
-
-
-    @PostMapping(value = "")
-    @ResponseBody
-    public List<RoomDTO> findAll() {
-        return service.getAll()
-                .stream()
-                .map(mapper::mapToDTO)
-                .collect(Collectors.toList());
     }
 }

@@ -42,10 +42,6 @@ public class RoomServiceImpl implements RoomService {
         return repository.findById(id);
     }
 
-    @Override
-    public List<Room> getAll() {
-        return repository.findAll();
-    }
 
     @Override
     public UserStatsDTO statsByUser(User user) {
@@ -65,6 +61,7 @@ public class RoomServiceImpl implements RoomService {
     public Room linkDeviceToRoom(UUID roomId, String macAddress, String name) {
         Room room = repository.findById(roomId)
                 .orElseThrow(() -> new EntityNotFoundException("Room not found with ID: " + roomId));
+        log.info(String.valueOf(room));
         Device device = new Device();
         device.setMacAddress(macAddress);
         device.setName(name);

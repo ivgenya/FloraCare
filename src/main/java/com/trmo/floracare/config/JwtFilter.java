@@ -1,6 +1,7 @@
 package com.trmo.floracare.config;
 
 import com.trmo.floracare.services.impl.JwtService;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,18 +42,29 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         String token = authorizationHeader.substring(7);
-        String userId = jwtService.getUserIdFromToken(token);
+        try {
+            String userId = jwtService.getUserIdFromToken(token);
 
-        if (userId == null) {
+            if (userId == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Invalid or missing token");
+                return;
+            }
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            filterChain.doFilter(request, response);
+
+        } catch (ExpiredJwtException e) {
+            log.error("Token has expired: " + e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Invalid or missing token");
-            return;
+            response.getWriter().write("Token has expired");
+        } catch (Exception e) {
+            log.error("Error validating token: " + e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Invalid token");
         }
-
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        filterChain.doFilter(request, response);
     }
+
 }

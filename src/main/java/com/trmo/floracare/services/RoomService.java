@@ -9,8 +9,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RoomService {
-    List<Room> getAll();
-
     List<Room> findByUser(User user);
 
     Optional<Room> findById(UUID id);
